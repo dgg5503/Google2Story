@@ -4,7 +4,7 @@ import threading
 import os
 
 def download_words(story_subset, monitor):
-    # if empty, just return
+    # if empty, just return 
     if not story_subset:
         return
 
