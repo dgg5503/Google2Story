@@ -380,3 +380,6 @@ __pycache__/
 
 # Sounds
 *.mp3
+/places.txt
+/numbers.txt
+/tens.txt

@@ -3,6 +3,80 @@ import playsound
 import threading
 import os
 
+ones_specs = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"]
+tens = ["ones", "tens", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"]
+places = ["thousand", "million", "billion", "trillion", "quadrillion", "quintillion", "sextillion", "septillion", "octillion", "nonillion", "decillion", "undecillion", "duodecillion", "tredecillion", "quattuordecillion", "quindecillion", "sexdecillion", "septendecillion", "octodecillion", "novemdecillion"]
+
+# INCORRECT RESPONSES:
+# - 0's up to 63 zeros reads it has a full number
+# - how to handle leading 0s?
+# - no options to read numbers one by one for phone numbers (detect this via regex?)
+# - 1000 and other variants of double word numbers returns zeros where there shouldnt be
+def num_word(number, ones_specs, tens, places):
+    # if any of the provided args are empty, return nothing
+    if not number or not ones_specs or not tens or not places:
+        return ""
+        
+    # if number has too many digits, just read the numbers
+    if len(number) > 63:
+        list_out = []
+        for num in number:
+            list_out.append(ones_specs[int(num)])
+        return " ".join(list_out)
+
+    # if larger then 10^63, just say the numbers
+    # special numbers are 0-19, 20, 30, 40, 50, 60, 70, 80, 90
+    # 0-9, 1s
+    # 10-99, 10s
+    # 100-999, 100s begin using funny words, hundred, thousand,
+    
+    # 45385
+    # 5 thousand 3 hundred 8ty 5
+    # (5 thousand (3 hundred (8ty (5)))
+    output = ''
+    def num_word_recurse(number, output):        
+        # less then three digits
+        if len(number) <= 3:
+            parsed_num = int(number)
+
+            # 0 - 19
+            if parsed_num < 20:
+                return output + ones_specs[parsed_num]
+
+            # 20 - 99 with special tens
+            if parsed_num <= 99:
+                ones_place = parsed_num % 10
+                tens_place = parsed_num // 10
+                if ones_place == 0:
+                    return output + tens[tens_place]
+                return output + tens[tens_place] + " " + ones_specs[ones_place]
+
+            # 100 - 999
+            return num_word_recurse(number[1:], output + ones_specs[int(number[0])] + " hundred ")
+
+        # grab a group of 3 and recurse for hundred number
+        slice = len(number) % 3
+        if slice == 0:
+            slice = 3
+
+        ## 000 group check
+        #while number and int(number[:slice]) == 0:
+        #    number = number[slice:]
+        #    slice = len(number) % 3
+        #    if slice == 0:
+        #        slice = 3
+
+        ## nothing check
+        #if not number:
+        #    return output
+
+        # provide the place and recurse
+        return num_word_recurse(number[slice:], num_word_recurse(number[:slice], output) + " " + places[((len(number) - 1) // 3) - 1] + " ")
+    return num_word_recurse(number, output)
+
+def split_array(lst, n):
+    return [ lst[i::n] for i in range(n) ]
+
 def download_words(story_subset, monitor):
     # if empty, just return 
     if not story_subset:
@@ -22,9 +96,6 @@ def download_words(story_subset, monitor):
 
     # merge dicts
     monitor.append(word_sound_subset)
-
-def split_array(lst, n):
-    return [ lst[i::n] for i in range(n) ]
 
 class Monitor:
     def __init__(self):
@@ -79,13 +150,15 @@ while True:
     download_threads.clear()
 
     # Enter your story
-    print("Enter your story (words and spaces only): ")
+    print("Enter your story: ")
 
     # Normalize and tokenize
-    story = ["".join(filter(str.isalpha, word)) for word in input().strip().lower().split(" ")]
+    # convert numbers to words
+    story_text = ["".join(filter(str.isalnum, word)) for word in input().strip().lower().split(" ")]
+    story_text_nums = " ".join(map(lambda x: num_word(x, ones_specs, tens, places) if x.isnumeric() else x, story_text)).split(" ")
 
     # Place all words not in word_sound dict into set
-    words_to_download = set(story).difference(set(monitor.get_all().keys()))
+    words_to_download = set(story_text_nums).difference(set(monitor.get_all().keys()))
 
     # see if we have to download anything!
     if words_to_download:
@@ -107,7 +180,7 @@ while True:
             thread.join()
 
     # Play back
-    for word in story:
+    for word in story_text_nums:
         path = monitor.get(word)
         if path:
             playsound.playsound(path)
